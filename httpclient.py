@@ -27,6 +27,8 @@ import urllib.parse
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
 
+
+#It’s a good idea to send the Host header in a GET or POST
 class HTTPResponse(object):
     def __init__(self, code=200, body=""):
         self.code = code
@@ -41,13 +43,13 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        return int(data.split()[1])
 
     def get_headers(self,data):
-        return None
+        return data.split("\r\n\r\n")[0]
 
     def get_body(self, data):
-        return None
+        return data.split("\r\n\r\n")[1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -68,13 +70,59 @@ class HTTPClient(object):
         return buffer.decode('utf-8')
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        o = urllib.parse.urlparse(url)
+        path = o.path
+        hostname = o.hostname
+
+        port = o.port
+        if (port == None):
+            port = 80
+        
+        if (path == ""):
+            path = "/"
+        get_request = "GET " + str(path) + " HTTP/1.1\r\n" + "Host: " + str(hostname) + "\r\n" + "Accept: */*\r\nConnection: Close\r\n\r\n"
+        
+        self.connect(hostname, port)
+        self.sendall(get_request)
+        
+        recieved = self.recvall(self.socket)
+        code = self.get_code(recieved)
+        body = self.get_body(recieved)
+
+        self.close()
+
+        print(body)
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+        o = urllib.parse.urlparse(url)
+        path = o.path
+        hostname = o.hostname
+        port = o.port
+        content_length = 0
+
+        if (port == None):
+            port = 80
+        
+        if (path == ""):
+            path = "/"
+
+        if (args != None):
+            content_length = len(urllib.parse.urlencode(args))
+            post_request = "POST " + str(path)+ " HTTP/1.1\r\n" + "Accept: */*\r\nHost: " + str(hostname) + "\r\n" + "Content-Type: application/x-www-form-urlencoded\r\n" + "Content-Length: " + str(content_length) + "\r\n" + "Connection: close\r\n\r\n" + urllib.parse.urlencode(args)
+        else:
+            post_request = "POST " + str(path)+ " HTTP/1.1\r\n" + "Accept: */*\r\nHost: " + str(hostname) + "\r\n" + "Content-Type: application/x-www-form-urlencoded\r\n" + "Content-Length: " + str(content_length) + "\r\n" + "Connection: close\r\n\r\n"
+
+        self.connect(hostname, port)
+        self.sendall(post_request)
+
+        recieved = self.recvall(self.socket)
+        code = int(self.get_code(recieved))
+        body = self.get_body(recieved)
+
+        self.close()
+
+        print(body)
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
